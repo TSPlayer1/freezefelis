@@ -75,7 +75,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 
 .link-btn {
   background: none; border: none; padding: 0;
-  color: var(--accent-dark); text-decoration: underline;
+  color: var(--accent-dark); text-decoration: ;
 }
 .link-btn.danger, .danger { color: var(--danger); }
 
@@ -133,12 +133,26 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   border-top: 1px solid var(--line); padding-top: 10px;
 }
+/* Make the vote/save/comment icons white */
 .act {
-  background: transparent; border: 1px solid transparent; border-radius: 999px;
-  padding: 3px 9px; opacity: 0.75;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  color: white;
+  opacity: 1;
+  font-size: 1.05rem;
 }
-.act:hover { background: var(--peach); opacity: 1; }
-.act.on { background: var(--peach); border-color: var(--accent); opacity: 1; }
+
+.act:hover {
+  color: white;
+  background: var(--peach);
+}
+
+.act.on {
+  color: white;
+  background: var(--peach);
+  border-color: var(--accent);
+}
 .score { min-width: 1.5em; text-align: center; font-weight: bold; }
 .spacer { flex: 1; }
 .actions .link-btn { font-size: 0.85rem; color: var(--muted); }
