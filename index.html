@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FreezeFelis</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== TOP BAR ===== -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="logo" href="index.html">
+        <img src="logo.png" alt="FreezeFelis" class="logo-img">
+      </a>
+      <div id="auth-area" class="auth-area"></div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN PAGE ===== -->
+  <main class="page">
+    <nav class="tabs">
+      <button id="tab-latest" class="tab" data-action="go-latest">Latest Uploads</button>
+      <button id="tab-saved" class="tab" data-action="go-saved" hidden>Saved</button>
+      <form id="search-form" class="search-form">
+        <input type="text" id="search-input" placeholder="Search posts or people…" maxlength="60">
+      </form>
+    </nav>
+
+    <h1 id="view-title">Latest Uploads</h1>
+    <p id="view-sub" class="subtitle"></p>
+
+    <div id="profile-header" class="profile-header" hidden></div>
+    <div id="search-users" class="search-users" hidden></div>
+
+    <section id="feed" class="feed"></section>
+  </main>
+
+  <footer class="footer">
+    <p>No ads. No algorithms. Newest first. People shape discovery.</p>
+    <p><button class="link-btn" data-action="open-rules">Community rules</button></p>
+  </footer>
+
+
+  <!-- ===== POP-UP WINDOWS (dialogs) ===== -->
+
+  <!-- Log in -->
+  <dialog id="login-dialog">
+    <form id="login-form">
+      <h2>Welcome back</h2>
+      <label>Email <input type="email" id="login-email" required></label>
+      <label>Password <input type="password" id="login-password" required></label>
+      <p id="login-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Log in</button>
+      </div>
+      <p class="switch">New here? <button type="button" class="link-btn" data-action="open-signup">Join</button></p>
+    </form>
+  </dialog>
+
+  <!-- Sign up -->
+  <dialog id="signup-dialog">
+    <form id="signup-form">
+      <h2>Join the corner</h2>
+      <label>Username <small>(3–20 letters, numbers or _)</small>
+        <input type="text" id="signup-username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}">
+      </label>
+      <label>Email <input type="email" id="signup-email" required></label>
+      <label>Password <small>(at least 8 characters)</small>
+        <input type="password" id="signup-password" required minlength="8">
+      </label>
+      <label class="check">
+        <input type="checkbox" id="signup-rules" required>
+        <span>I've read the <button type="button" class="link-btn" data-action="open-rules">community rules</button>, including that AI-generated creative work isn't allowed.</span>
+      </label>
+      <p id="signup-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Create account</button>
+      </div>
+      <p class="switch">Already have an account? <button type="button" class="link-btn" data-action="open-login">Log in</button></p>
+    </form>
+  </dialog>
+
+  <!-- Share something -->
+  <dialog id="upload-dialog">
+    <form id="upload-form">
+      <h2>Share something</h2>
+      <label>Title <input type="text" id="post-title" required maxlength="120"></label>
+      <label>Description <small>(optional if you add a file)</small>
+        <textarea id="post-body" rows="5" maxlength="5000" placeholder="Write something, or tell people about your work…"></textarea>
+      </label>
+      <label>Image, GIF or video <small>(optional, up to 100 MB)</small>
+        <input type="file" id="post-file" accept="image/*,video/mp4,video/webm,video/quicktime">
+      </label>
+      <label class="check">
+        <input type="checkbox" required>
+        <span>This is my own work. It is not AI-generated (AI-assisted tools like cleanup or background removal are fine).</span>
+      </label>
+      <p id="upload-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Share</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Edit profile -->
+  <dialog id="profile-dialog">
+    <form id="profile-form">
+      <h2>Edit your profile</h2>
+      <label>Profile picture <small>(optional, square images look best, up to 5 MB)</small>
+        <input type="file" id="profile-avatar" accept="image/png,image/jpeg,image/webp">
+      </label>
+      <label>Username <small>(3–20 letters, numbers or _)</small>
+        <input type="text" id="profile-username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}">
+      </label>
+      <label>Bio <small>(optional, up to 200 characters)</small>
+        <textarea id="profile-bio" rows="3" maxlength="200" placeholder="Tell people a bit about your work…"></textarea>
+      </label>
+      <p id="profile-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Report -->
+  <dialog id="report-dialog">
+    <form id="report-form">
+      <h2>Report</h2>
+      <p class="small-note">A human moderator will look at this. Tell us briefly what's wrong.</p>
+      <label>Reason <textarea id="report-reason" rows="3" maxlength="500" required></textarea></label>
+      <p id="report-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Send report</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Rules -->
+  <dialog id="rules-dialog">
+    <div class="rules">
+      <h2>Community rules</h2>
+      <ol>
+        <li><strong>No AI-generated creative work.</strong> AI may assist you (background removal, audio cleanup, upscaling…). It may not replace you.</li>
+        <li>Only share your own work. No stealing or reuploading.</li>
+        <li>No exact duplicate uploads or spam.</li>
+        <li>No suspicious or unexplained links.</li>
+        <li>No sexual content.</li>
+        <li>No real bloody, gory or graphic content.</li>
+        <li>No political content or global conspiracy-theory talk.</li>
+        <li>Keep it small, creative, friendly and low-drama. 🌱</li>
+      </ol>
+      <div class="dialog-buttons">
+        <button type="button" class="btn" data-close>Got it</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Supabase library (this is what lets our code talk to Supabase) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Our own code -->
+  <script src="script.js"></script>
+</body>
+</html>
