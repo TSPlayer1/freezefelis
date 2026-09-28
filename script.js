@@ -405,7 +405,7 @@ async function loadFeed() {
       ? 'Nothing saved yet.'
       : view.type === 'search'
         ? 'No posts match your search.'
-        : 'Nothing here yet. Be the first to share something! 🌱';
+        : 'Nothing here yet. Be the first to share something!';
     feed.innerHTML = `<p class="note">${empty}</p>`;
     return;
   }
@@ -894,6 +894,28 @@ document.addEventListener('click', async (e) => {
 
     // profile page
     case 'edit-profile': await openEditProfile(); break;
+        case 'delete-account': {
+      const typed = prompt(
+        'This will permanently delete your account, along with all your posts, comments, votes, saves, follows and uploaded files.\n\n' +
+        'This cannot be undone.\n\n' +
+        'Type DELETE in capital letters to confirm:'
+      );
+      if (typed === null) break;               // user pressed Cancel
+      if (typed !== 'DELETE') {
+        alert('Cancelled. Nothing was deleted.');
+        break;
+      }
+      const { error } = await db.rpc('delete_my_account');
+      if (error) {
+        alert('Could not delete your account: ' + error.message);
+        break;
+      }
+      alert('Your account has been deleted');
+      await db.auth.signOut();
+      view = { type: 'latest' };
+      await setUser(null);
+      break;
+    }
     case 'toggle-follow': {
       const wasFollowing = btn.dataset.following === 'true';
       await toggleFollow(btn.dataset.userId, wasFollowing);
