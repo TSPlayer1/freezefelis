@@ -1,12 +1,13 @@
 /* =====================================================
-   FreezeFelis — script.js  (V0.1)
+   FreezeFelis — script.js  (V0.2)
+   Adds: search, notifications, edit posts/comments, mentions
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
 const SUPABASE_URL = 'https://nyjasgfyfrkpjrrnklkm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_cR28i7fxZ0I7P99QA69PVQ_ge-6CHQS';
 
-const MAX_FILE_MB = 50;
+const MAX_FILE_MB = 100;
 const MAX_AVATAR_MB = 5;
 
 /* ---------- 2. CONNECT TO SUPABASE ---------- */
@@ -25,6 +26,14 @@ function esc(text) {
   return String(text ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
+}
+
+// Turn @username into a clickable link. Must be used on ALREADY-escaped text.
+function linkifyMentions(escapedText) {
+  if (!escapedText) return '';
+  return escapedText.replace(/@([A-Za-z0-9_]{3,20})/g, (m, name) =>
+    `<button type="button" class="mention" data-action="go-username" data-username="${name}">@${name}</button>`
+  );
 }
 
 function formatDate(iso) {
@@ -78,6 +87,7 @@ async function setUser(user) {
     me = profile;
   }
   updateHeader();
+  if (me) loadUnreadCount();
   await loadFeed();
 }
 
@@ -87,6 +97,10 @@ function updateHeader() {
     area.innerHTML = `
       <button class="link-btn" data-action="my-profile">${esc(me.username)}</button>
       <button class="btn" data-action="open-upload">+ Share something</button>
+      <div class="notif-wrap">
+        <button class="bell-btn" data-action="toggle-notifs" title="Notifications">🔔<span id="notif-badge" class="notif-badge" hidden>0</span></button>
+        <div id="notif-dropdown" class="notif-dropdown" hidden></div>
+      </div>
       <button class="btn ghost" data-action="logout">Log out</button>`;
   } else {
     area.innerHTML = `
@@ -105,6 +119,9 @@ function updateHeading() {
   } else if (view.type === 'saved') {
     $('#view-title').textContent = 'Saved';
     $('#view-sub').textContent = 'Things you wanted to keep. Only you can see this.';
+  } else if (view.type === 'search') {
+    $('#view-title').textContent = `Search: "${view.query}"`;
+    $('#view-sub').textContent = '';
   } else {
     $('#view-title').textContent = `Posts by ${view.username}`;
     $('#view-sub').textContent = '';
@@ -181,6 +198,7 @@ async function toggleFollow(userId, wasFollowing) {
   await loadProfileHeader(userId);
 }
 
+/* ---------- 6b. EDIT PROFILE ---------- */
 async function openEditProfile() {
   const { data: profile } = await db
     .from('profiles')
@@ -188,7 +206,6 @@ async function openEditProfile() {
     .eq('id', me.id)
     .single();
 
-  // Pre-fill the fields with what's already saved
   $('#profile-username').value = profile?.username || me.username || '';
   $('#profile-bio').value = profile?.bio || '';
   $('#profile-avatar').value = '';
@@ -239,7 +256,6 @@ $('#profile-form').addEventListener('submit', async (e) => {
       throw error;
     }
 
-    // Keep the topbar showing the new name right away
     me.username = newUsername;
 
     $('#profile-dialog').close();
@@ -252,10 +268,68 @@ $('#profile-form').addEventListener('submit', async (e) => {
   button.disabled = false;
 });
 
+/* ---------- 6c. NOTIFICATIONS ---------- */
+async function loadUnreadCount() {
+  if (!me) return;
+  const badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  const { count } = await db
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', me.id)
+    .eq('is_read', false);
+  if (count && count > 0) {
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
+async function loadNotifications() {
+  if (!me) return;
+  const dropdown = document.getElementById('notif-dropdown');
+  if (!dropdown) return;
+
+  const { data: rows, error } = await db
+    .from('notifications')
+    .select('*')
+    .eq('user_id', me.id)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (error) {
+    dropdown.innerHTML = `<p class="small-note" style="padding:8px">${esc(error.message)}</p>`;
+    return;
+  }
+  if (!rows || rows.length === 0) {
+    dropdown.innerHTML = '<p class="small-note" style="padding:8px">No notifications yet.</p>';
+    return;
+  }
+
+  dropdown.innerHTML = `
+    <div class="notif-head">
+      <strong>Notifications</strong>
+      <button class="link-btn" data-action="mark-all-read">Mark all read</button>
+    </div>
+    ${rows.map((n) => `
+      <button class="notif-item ${n.is_read ? '' : 'unread'}" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
+        <span>${esc(n.message)}</span>
+        <span class="time">${formatDate(n.created_at)}</span>
+      </button>
+    `).join('')}`;
+}
+
 /* ---------- 7. LOADING THE FEED ---------- */
 async function loadFeed() {
   const feed = $('#feed');
   updateHeading();
+
+  // Clear user-search results unless we're on a search
+  if (view.type !== 'search') {
+    $('#search-users').hidden = true;
+    $('#search-users').innerHTML = '';
+  }
 
   if (view.type === 'user') {
     await loadProfileHeader(view.userId);
@@ -265,8 +339,6 @@ async function loadFeed() {
 
   feed.innerHTML = '<p class="note">Loading…</p>';
 
-  // THE IMPORTANT BIT: "!posts_user_id_fkey" tells Supabase exactly
-  // which connection between posts and profiles to use.
   const postSelect = '*, profiles!posts_user_id_fkey(username, avatar_url)';
   let posts = [];
 
@@ -288,6 +360,33 @@ async function loadFeed() {
       .order('created_at', { ascending: false });
     if (error) return showFeedError(error);
     posts = rows;
+  } else if (view.type === 'search') {
+    // 1) find matching people
+    const { data: users } = await db
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .ilike('username', `%${view.query}%`)
+      .limit(20);
+    const userBox = $('#search-users');
+    if (users && users.length > 0) {
+      userBox.hidden = false;
+      userBox.innerHTML = users.map((u) => `
+        <button class="search-user-btn" data-action="go-user" data-user-id="${u.id}" data-username="${esc(u.username)}">
+          ${avatarHtml(u, 'small')}<span>${esc(u.username)}</span>
+        </button>`).join('');
+    }
+
+    // 2) find matching posts (title OR body) — two queries, merged safely
+    const [byTitle, byBody] = await Promise.all([
+      db.from('posts').select(postSelect).eq('is_hidden', false).ilike('title', `%${view.query}%`).limit(50),
+      db.from('posts').select(postSelect).eq('is_hidden', false).ilike('body', `%${view.query}%`).limit(50),
+    ]);
+    if (byTitle.error) return showFeedError(byTitle.error);
+    if (byBody.error) return showFeedError(byBody.error);
+    const seen = new Set();
+    posts = [...(byTitle.data || []), ...(byBody.data || [])]
+      .filter((p) => { if (seen.has(p.id)) return false; seen.add(p.id); return true; })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   } else {
     const { data: rows, error } = await db
       .from('posts')
@@ -302,7 +401,11 @@ async function loadFeed() {
   data = { posts, scores: {}, myVotes: {}, mySaves: new Set(), commentCounts: {} };
 
   if (posts.length === 0) {
-    const empty = view.type === 'saved' ? 'Nothing saved yet.' : 'Nothing here yet. Be the first to share something! 🌱';
+    const empty = view.type === 'saved'
+      ? 'Nothing saved yet.'
+      : view.type === 'search'
+        ? 'No posts match your search.'
+        : 'Nothing here yet. Be the first to share something! 🌱';
     feed.innerHTML = `<p class="note">${empty}</p>`;
     return;
   }
@@ -342,9 +445,10 @@ function actionsHtml(p) {
     <button class="act" data-action="toggle-comments" title="Comments">💬 ${commentCount}</button>
     <span class="spacer"></span>
     ${own ? `
-      <button class="link-btn" data-action="pin">${p.is_pinned ? '📌' : '📌'}</button>
-      <button class="link-btn" data-action="hide">${p.is_hidden ? '📁' : '📁'}</button>
-      <button class="link-btn danger" data-action="delete-post">🗑️</button>
+      <button class="link-btn" data-action="pin" title="${p.is_pinned ? 'Unpin' : 'Pin'}">📌</button>
+      <button class="link-btn" data-action="hide" title="${p.is_hidden ? 'Unhide' : 'Hide'}">📁</button>
+      <button class="link-btn" data-action="edit-post" title="Edit">✏️</button>
+      <button class="link-btn danger" data-action="delete-post" title="Delete">🗑️</button>
     ` : `
       <button class="link-btn" data-action="report-post">Report</button>
     `}`;
@@ -371,7 +475,7 @@ function postHtml(p) {
         ${p.is_hidden ? '<span class="badge">Hidden (only you see this)</span>' : ''}
       </div>
       <h2 class="post-title">${esc(p.title)}</h2>
-      ${p.body ? `<p class="post-text">${esc(p.body)}</p>` : ''}
+      ${p.body ? `<p class="post-text">${linkifyMentions(esc(p.body))}</p>` : ''}
       ${media}
       <div class="actions">${actionsHtml(p)}</div>
       <div class="comments" hidden>
@@ -449,6 +553,38 @@ async function deletePost(postId) {
   await loadFeed();
 }
 
+/* ---------- 10b. EDIT A POST (inline) ---------- */
+function openEditPost(card, postId) {
+  if (card.querySelector('.edit-post-form')) return;
+  const post = data.posts.find((p) => p.id === postId);
+  if (!post) return;
+
+  const titleEl = card.querySelector('.post-title');
+  const textEl = card.querySelector('.post-text');
+
+  const form = document.createElement('div');
+  form.className = 'edit-post-form';
+  form.innerHTML = `
+    <input type="text" class="edit-title" value="${esc(post.title)}" maxlength="120">
+    <textarea class="edit-body" rows="4" maxlength="5000">${esc(post.body || '')}</textarea>
+    <div class="edit-buttons">
+      <button class="link-btn" data-action="cancel-edit-post">Cancel</button>
+      <button class="btn small" data-action="save-edit-post">Save</button>
+    </div>`;
+  titleEl.style.display = 'none';
+  if (textEl) textEl.style.display = 'none';
+  titleEl.after(form);
+}
+
+async function saveEditPost(card, postId) {
+  const title = card.querySelector('.edit-title').value.trim();
+  const body = card.querySelector('.edit-body').value.trim();
+  if (!title) return alert('Please add a title.');
+  const { error } = await db.from('posts').update({ title, body }).eq('id', postId);
+  if (error) return alert(error.message);
+  await loadFeed();
+}
+
 /* ---------- 11. COMMENTS ---------- */
 async function loadComments(postId, card) {
   const list = card.querySelector('.comment-list');
@@ -488,12 +624,13 @@ function commentHtml(c, byParent, postOwnerId) {
         <span class="time">${formatDate(c.created_at)}</span>
         ${c.is_starred ? '<span class="starred">⭐ liked by the creator</span>' : ''}
       </div>
-      <p class="comment-body">${esc(c.body)}</p>
+      <p class="comment-body">${linkifyMentions(esc(c.body))}</p>
       <div class="comment-actions">
         <button class="link-btn" data-action="reply">Reply</button>
         ${iAmPostOwner ? `<button class="link-btn" data-action="star">${c.is_starred ? 'Unstar' : '⭐ Star'}</button>` : ''}
         ${own
-          ? '<button class="link-btn danger" data-action="delete-comment">Delete</button>'
+          ? `<button class="link-btn" data-action="edit-comment">Edit</button>
+             <button class="link-btn danger" data-action="delete-comment">Delete</button>`
           : '<button class="link-btn" data-action="report-comment">Report</button>'}
       </div>
       <div class="reply-box" hidden>
@@ -511,6 +648,31 @@ async function addComment(postId, card, textarea, parentId) {
   const { error } = await db.from('comments').insert({ post_id: postId, user_id: me.id, parent_id: parentId, body });
   if (error) return alert('Could not post comment: ' + error.message);
   textarea.value = '';
+  await loadComments(postId, card);
+}
+
+function openEditComment(commentEl) {
+  if (commentEl.querySelector('.edit-comment-form')) return;
+  const bodyEl = commentEl.querySelector('.comment-body');
+  const currentBody = bodyEl.textContent;
+
+  const form = document.createElement('div');
+  form.className = 'edit-comment-form';
+  form.innerHTML = `
+    <textarea class="edit-comment-body" rows="2" maxlength="2000">${esc(currentBody)}</textarea>
+    <div class="edit-buttons">
+      <button class="link-btn" data-action="cancel-edit-comment">Cancel</button>
+      <button class="btn small" data-action="save-edit-comment">Save</button>
+    </div>`;
+  bodyEl.style.display = 'none';
+  bodyEl.after(form);
+}
+
+async function saveEditComment(postId, card, commentEl, commentId) {
+  const newBody = commentEl.querySelector('.edit-comment-body').value.trim();
+  if (!newBody) return;
+  const { error } = await db.from('comments').update({ body: newBody }).eq('id', commentId);
+  if (error) return alert(error.message);
   await loadComments(postId, card);
 }
 
@@ -637,8 +799,26 @@ $('#upload-form').addEventListener('submit', async (e) => {
   button.disabled = false;
 });
 
-/* ---------- 15. ALL BUTTON CLICKS ---------- */
+/* ---------- 15. SEARCH FORM ---------- */
+$('#search-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = $('#search-input').value.trim();
+  if (!q) {
+    view = { type: 'latest' };
+    await loadFeed();
+    return;
+  }
+  view = { type: 'search', query: q };
+  await loadFeed();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+/* ---------- 16. ALL BUTTON CLICKS ---------- */
 document.addEventListener('click', async (e) => {
+  // Close notifications dropdown if clicked outside
+  const dd = document.getElementById('notif-dropdown');
+  if (dd && !dd.hidden && !e.target.closest('.notif-wrap')) dd.hidden = true;
+
   const closer = e.target.closest('[data-close]');
   if (closer) { closer.closest('dialog').close(); return; }
 
@@ -652,12 +832,13 @@ document.addEventListener('click', async (e) => {
   const commentId = commentEl ? Number(commentEl.dataset.cid) : null;
 
   switch (action) {
+    // header & navigation
     case 'open-login':  openDialog('login-dialog'); break;
     case 'open-signup': openDialog('signup-dialog'); break;
     case 'open-rules':  openDialog('rules-dialog'); break;
     case 'open-upload': openDialog('upload-dialog'); break;
     case 'logout':      await logout(); break;
-    case 'go-latest':   view = { type: 'latest' }; await loadFeed(); break;
+    case 'go-latest':   view = { type: 'latest' }; $('#search-input').value = ''; await loadFeed(); break;
     case 'go-saved':    view = { type: 'saved' }; await loadFeed(); break;
     case 'my-profile':  view = { type: 'user', userId: me.id, username: me.username }; await loadFeed(); break;
     case 'go-user':
@@ -665,7 +846,53 @@ document.addEventListener('click', async (e) => {
       await loadFeed();
       window.scrollTo({ top: 0, behavior: 'smooth' });
       break;
+    case 'go-username': {
+      // Used by @mentions — look up the user by username
+      const uname = btn.dataset.username;
+      const { data: p } = await db.from('profiles').select('id, username').eq('username', uname).maybeSingle();
+      if (!p) { alert('@' + uname + ' not found.'); break; }
+      view = { type: 'user', userId: p.id, username: p.username };
+      await loadFeed();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      break;
+    }
 
+    // notifications
+    case 'toggle-notifs': {
+      const dropdown = document.getElementById('notif-dropdown');
+      if (!dropdown) break;
+      if (dropdown.hidden) {
+        await loadNotifications();
+        dropdown.hidden = false;
+      } else {
+        dropdown.hidden = true;
+      }
+      break;
+    }
+    case 'mark-all-read': {
+      await db.from('notifications').update({ is_read: true }).eq('user_id', me.id).eq('is_read', false);
+      await loadNotifications();
+      await loadUnreadCount();
+      break;
+    }
+    case 'open-notif': {
+      const nid = Number(btn.dataset.id);
+      const nPostId = btn.dataset.postId ? Number(btn.dataset.postId) : null;
+      await db.from('notifications').update({ is_read: true }).eq('id', nid);
+      document.getElementById('notif-dropdown').hidden = true;
+      await loadUnreadCount();
+      if (nPostId) {
+        view = { type: 'latest' };
+        await loadFeed();
+        setTimeout(() => {
+          const target = document.querySelector(`.post[data-id="${nPostId}"]`);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+      }
+      break;
+    }
+
+    // profile page
     case 'edit-profile': await openEditProfile(); break;
     case 'toggle-follow': {
       const wasFollowing = btn.dataset.following === 'true';
@@ -673,6 +900,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    // post buttons
     case 'up':          await vote(postId, 1); break;
     case 'down':        await vote(postId, -1); break;
     case 'save':        await toggleSave(postId); break;
@@ -680,7 +908,11 @@ document.addEventListener('click', async (e) => {
     case 'hide':        await toggleHide(postId); break;
     case 'delete-post': await deletePost(postId); break;
     case 'report-post': startReport('post', postId); break;
+    case 'edit-post':   openEditPost(card, postId); break;
+    case 'save-edit-post':   await saveEditPost(card, postId); break;
+    case 'cancel-edit-post': await loadFeed(); break;
 
+    // comments
     case 'toggle-comments': {
       const box = card.querySelector('.comments');
       box.hidden = !box.hidden;
@@ -704,6 +936,9 @@ document.addEventListener('click', async (e) => {
       await loadComments(postId, card);
       break;
     }
+    case 'edit-comment':   openEditComment(commentEl); break;
+    case 'save-edit-comment':   await saveEditComment(postId, card, commentEl, commentId); break;
+    case 'cancel-edit-comment': await loadComments(postId, card); break;
     case 'delete-comment': {
       if (!confirm('Delete this comment?')) break;
       const { error } = await db.from('comments').delete().eq('id', commentId);
@@ -715,7 +950,7 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-/* ---------- 16. START THE APP ---------- */
+/* ---------- 17. START THE APP ---------- */
 async function start() {
   const { data: { session } } = await db.auth.getSession();
   await setUser(session ? session.user : null);
