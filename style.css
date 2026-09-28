@@ -214,7 +214,7 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   padding: 8px 6px; border-radius: 8px; color: var(--text);
 }
 .notif-item:hover { background: var(--peach); }
-.notif-item.unread { background: #182f55; }
+.notif-item.unread { background: #6a5d2e; }
 .notif-item .time { color: var(--muted); font-size: 0.75rem; }
 
 /* ===== Comments ===== */
@@ -281,3 +281,12 @@ dialog label.check input { width: auto; margin-top: 5px; }
   vertical-align: baseline;
 }
 .mention:hover { text-decoration: underline; }
+/* Audio player sits nicely inside a post card */
+audio.audio-media {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0 12px;
+  background: transparent;
+  border-radius: 12px;
+}

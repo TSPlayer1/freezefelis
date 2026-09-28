@@ -1,6 +1,6 @@
 /* =====================================================
    FreezeFelis — script.js  (V0.2)
-   Adds: search, notifications, edit posts/comments, mentions
+   Adds: search, notifications, edit posts/comments, mentions, audio
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
@@ -28,7 +28,6 @@ function esc(text) {
   ));
 }
 
-// Turn @username into a clickable link. Must be used on ALREADY-escaped text.
 function linkifyMentions(escapedText) {
   if (!escapedText) return '';
   return escapedText.replace(/@([A-Za-z0-9_]{3,20})/g, (m, name) =>
@@ -166,7 +165,9 @@ async function loadProfileHeader(userId) {
   if (own) {
     actionHtml = `<button class="btn ghost" data-action="edit-profile">Edit profile</button>`;
   } else if (me) {
-    actionHtml = `<button class="btn ${iFollow ? 'ghost' : ''}" data-action="toggle-follow" data-user-id="${userId}" data-following="${iFollow}">${iFollow ? 'Following ✓' : 'Follow'}</button>`;
+    actionHtml = `
+      <button class="btn ${iFollow ? 'ghost' : ''}" data-action="toggle-follow" data-user-id="${userId}" data-following="${iFollow}">${iFollow ? 'Following ✓' : 'Follow'}</button>
+      <button class="btn ghost" data-action="boop" data-user-id="${userId}">👋 Boop</button>`;
   } else {
     actionHtml = `<button class="btn ghost" data-action="open-login">Follow</button>`;
   }
@@ -325,7 +326,6 @@ async function loadFeed() {
   const feed = $('#feed');
   updateHeading();
 
-  // Clear user-search results unless we're on a search
   if (view.type !== 'search') {
     $('#search-users').hidden = true;
     $('#search-users').innerHTML = '';
@@ -361,7 +361,6 @@ async function loadFeed() {
     if (error) return showFeedError(error);
     posts = rows;
   } else if (view.type === 'search') {
-    // 1) find matching people
     const { data: users } = await db
       .from('profiles')
       .select('id, username, avatar_url')
@@ -376,7 +375,6 @@ async function loadFeed() {
         </button>`).join('');
     }
 
-    // 2) find matching posts (title OR body) — two queries, merged safely
     const [byTitle, byBody] = await Promise.all([
       db.from('posts').select(postSelect).eq('is_hidden', false).ilike('title', `%${view.query}%`).limit(50),
       db.from('posts').select(postSelect).eq('is_hidden', false).ilike('body', `%${view.query}%`).limit(50),
@@ -461,6 +459,8 @@ function postHtml(p) {
     media = `<img class="post-media" src="${esc(p.media_url)}" alt="${esc(p.title)}" loading="lazy">`;
   } else if (p.media_url && p.media_type === 'video') {
     media = `<video class="post-media" src="${esc(p.media_url)}" controls preload="metadata"></video>`;
+  } else if (p.media_url && p.media_type === 'audio') {
+    media = `<audio class="post-media audio-media" src="${esc(p.media_url)}" controls preload="metadata"></audio>`;
   }
 
   return `
@@ -772,7 +772,8 @@ $('#upload-form').addEventListener('submit', async (e) => {
       if (file.type === 'image/gif') media_type = 'gif';
       else if (file.type.startsWith('image/')) media_type = 'image';
       else if (file.type.startsWith('video/')) media_type = 'video';
-      else throw new Error('Only images, GIFs and videos are supported for now.');
+      else if (file.type.startsWith('audio/')) media_type = 'audio';
+      else throw new Error('Only images, GIFs, videos and audio are supported for now.');
 
       const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '');
       media_path = `${me.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -815,7 +816,6 @@ $('#search-form').addEventListener('submit', async (e) => {
 
 /* ---------- 16. ALL BUTTON CLICKS ---------- */
 document.addEventListener('click', async (e) => {
-  // Close notifications dropdown if clicked outside
   const dd = document.getElementById('notif-dropdown');
   if (dd && !dd.hidden && !e.target.closest('.notif-wrap')) dd.hidden = true;
 
@@ -847,7 +847,6 @@ document.addEventListener('click', async (e) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       break;
     case 'go-username': {
-      // Used by @mentions — look up the user by username
       const uname = btn.dataset.username;
       const { data: p } = await db.from('profiles').select('id, username').eq('username', uname).maybeSingle();
       if (!p) { alert('@' + uname + ' not found.'); break; }
@@ -894,13 +893,13 @@ document.addEventListener('click', async (e) => {
 
     // profile page
     case 'edit-profile': await openEditProfile(); break;
-        case 'delete-account': {
+    case 'delete-account': {
       const typed = prompt(
         'This will permanently delete your account, along with all your posts, comments, votes, saves, follows and uploaded files.\n\n' +
         'This cannot be undone.\n\n' +
         'Type DELETE in capital letters to confirm:'
       );
-      if (typed === null) break;               // user pressed Cancel
+      if (typed === null) break;
       if (typed !== 'DELETE') {
         alert('Cancelled. Nothing was deleted.');
         break;
@@ -919,6 +918,16 @@ document.addEventListener('click', async (e) => {
     case 'toggle-follow': {
       const wasFollowing = btn.dataset.following === 'true';
       await toggleFollow(btn.dataset.userId, wasFollowing);
+      break;
+    }
+    case 'boop': {
+      const targetId = btn.dataset.userId;
+      const { error } = await db.rpc('send_boop', { target_user_id: targetId });
+      if (error) return alert(error.message);
+      const originalText = btn.textContent;
+      btn.textContent = 'Booped! ✨';
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
       break;
     }
 
