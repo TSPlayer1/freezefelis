@@ -224,7 +224,7 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
 .comment-body { margin: 4px 0; white-space: pre-wrap; word-wrap: break-word; }
 .comment-actions { display: flex; gap: 12px; }
 .comment-actions .link-btn { font-size: 0.8rem; color: var(--muted); }
-.starred { font-size: 0.75rem; background: #fdf0c4; border-radius: 999px; padding: 1px 8px; }
+.starred { font-size: 0.75rem; background: #756121; border-radius: 999px; padding: 1px 8px; }
 .replies { margin-left: 18px; padding-left: 12px; border-left: 2px solid var(--line); margin-top: 8px; }
 .reply-box, .new-comment { display: flex; gap: 8px; align-items: flex-end; margin: 6px 0; }
 .reply-box[hidden] { display: none; }

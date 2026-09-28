@@ -13,7 +13,8 @@
     <div class="topbar-inner">
       <a class="logo" href="index.html">
         <img src="logo.png.png" alt="FreezeFelis" class="logo-img">
-      </a> FreezeFelis
+        FreezeFelis
+      </a>
       <div id="auth-area" class="auth-area"></div>
     </div>
   </header>
@@ -111,11 +112,11 @@
   <dialog id="profile-dialog">
     <form id="profile-form">
       <h2>Edit your profile</h2>
-      <label>Profile picture <small>(optional, square images look best, up to 5 MB)</small>
-        <input type="file" id="profile-avatar" accept="image/png,image/jpeg,image/webp">
-      </label>
       <label>Username <small>(3–20 letters, numbers or _)</small>
         <input type="text" id="profile-username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}">
+      </label>
+      <label>Profile picture <small>(optional, square images look best, up to 5 MB)</small>
+        <input type="file" id="profile-avatar" accept="image/png,image/jpeg,image/webp">
       </label>
       <label>Bio <small>(optional, up to 200 characters)</small>
         <textarea id="profile-bio" rows="3" maxlength="200" placeholder="Tell people a bit about your work…"></textarea>
@@ -162,7 +163,7 @@
     </div>
   </dialog>
 
-  <!-- Supabase library (this is what lets our code talk to Supabase) -->
+  <!-- Supabase library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Our own code -->
   <script src="script.js"></script>

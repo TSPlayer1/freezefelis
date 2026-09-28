@@ -182,7 +182,14 @@ async function toggleFollow(userId, wasFollowing) {
 }
 
 async function openEditProfile() {
-  const { data: profile } = await db.from('profiles').select('bio').eq('id', me.id).single();
+  const { data: profile } = await db
+    .from('profiles')
+    .select('username, bio')
+    .eq('id', me.id)
+    .single();
+
+  // Pre-fill the fields with what's already saved
+  $('#profile-username').value = profile?.username || me.username || '';
   $('#profile-bio').value = profile?.bio || '';
   $('#profile-avatar').value = '';
   setMsg($('#profile-msg'), '');
@@ -195,14 +202,17 @@ $('#profile-form').addEventListener('submit', async (e) => {
 
   const msg = $('#profile-msg');
   const button = e.target.querySelector('button[type="submit"]');
+  const newUsername = $('#profile-username').value.trim();
   const bio = $('#profile-bio').value.trim();
   const file = $('#profile-avatar').files[0];
+
+  if (!newUsername) return setMsg(msg, 'Please add a username.');
 
   button.disabled = true;
   setMsg(msg, 'Saving…', true);
 
   try {
-    const updates = { bio };
+    const updates = { bio, username: newUsername };
 
     if (file) {
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
@@ -222,10 +232,19 @@ $('#profile-form').addEventListener('submit', async (e) => {
     }
 
     const { error } = await db.from('profiles').update(updates).eq('id', me.id);
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505' || /duplicate/i.test(error.message)) {
+        throw new Error('That username is already taken. Try another one.');
+      }
+      throw error;
+    }
+
+    // Keep the topbar showing the new name right away
+    me.username = newUsername;
 
     $('#profile-dialog').close();
     setMsg(msg, '');
+    updateHeader();
     await loadProfileHeader(me.id);
   } catch (err) {
     setMsg(msg, err.message || 'Something went wrong.');
