@@ -24,6 +24,7 @@
   <main class="page">
     <nav class="tabs">
       <button id="tab-latest" class="tab" data-action="go-latest">Latest Uploads</button>
+      <button id="tab-following" class="tab" data-action="go-following" hidden>Following</button>
       <button id="tab-saved" class="tab" data-action="go-saved" hidden>Saved</button>
       <form id="search-form" class="search-form">
         <input type="text" id="search-input" placeholder="Search posts or people…" maxlength="60">
@@ -58,7 +59,39 @@
         <button type="button" class="btn ghost" data-close>Cancel</button>
         <button type="submit" class="btn">Log in</button>
       </div>
-      <p class="switch">New here? <button type="button" class="link-btn" data-action="open-signup">Join</button></p>
+      <p class="switch">
+        <button type="button" class="link-btn" data-action="open-forgot">Forgot password?</button>
+        &nbsp;·&nbsp;
+        New here? <button type="button" class="link-btn" data-action="open-signup">Join</button>
+      </p>
+    </form>
+  </dialog>
+
+  <!-- Forgot password -->
+  <dialog id="forgot-dialog">
+    <form id="forgot-form">
+      <h2>Reset your password</h2>
+      <p class="small-note">Tell us the email you signed up with. We'll send you a link to make a new password.</p>
+      <label>Email <input type="email" id="forgot-email" required></label>
+      <p id="forgot-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Send link</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Set a new password (opened from the email link) -->
+  <dialog id="reset-dialog">
+    <form id="reset-form">
+      <h2>Choose a new password</h2>
+      <p class="small-note">Pick something at least 8 characters long.</p>
+      <label>New password <input type="password" id="reset-password" required minlength="8"></label>
+      <label>Confirm new password <input type="password" id="reset-confirm" required minlength="8"></label>
+      <p id="reset-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="submit" class="btn">Save new password</button>
+      </div>
     </form>
   </dialog>
 

@@ -1,6 +1,7 @@
 /* =====================================================
-   FreezeFelis — script.js  (V0.2)
-   Adds: search, notifications, edit posts/comments, mentions, audio
+   FreezeFelis — script.js  (V0.4)
+   Adds: search, notifications, edit posts/comments,
+   mentions, audio, boop, Following tab, forgot password
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
@@ -107,14 +108,19 @@ function updateHeader() {
       <button class="btn" data-action="open-signup">Join</button>`;
   }
   $('#tab-saved').hidden = !me;
+  $('#tab-following').hidden = !me;
 }
 
 function updateHeading() {
   $('#tab-latest').classList.toggle('active', view.type === 'latest');
+  $('#tab-following').classList.toggle('active', view.type === 'following');
   $('#tab-saved').classList.toggle('active', view.type === 'saved');
   if (view.type === 'latest') {
     $('#view-title').textContent = 'Latest Uploads';
     $('#view-sub').textContent = 'A space made for artists, people who genuinely love art. Whether you draw, paint, animate, sculpt, photograph, write, act, make music, create videos, or express yourself through any other form of art, you’re welcome here.';
+  } else if (view.type === 'following') {
+    $('#view-title').textContent = 'Following';
+    $('#view-sub').textContent = 'The newest work from the people you follow.';
   } else if (view.type === 'saved') {
     $('#view-title').textContent = 'Saved';
     $('#view-sub').textContent = 'Things you wanted to keep. Only you can see this.';
@@ -321,12 +327,80 @@ async function loadNotifications() {
     `).join('')}`;
 }
 
+/* ---------- 6d. FORGOT PASSWORD ---------- */
+
+// "Forgot password?" was clicked — open the dialog and prefill email if they typed one
+function openForgotPassword() {
+  const typedEmail = $('#login-email').value.trim();
+  $('#forgot-email').value = typedEmail;
+  setMsg($('#forgot-msg'), '');
+  openDialog('forgot-dialog');
+}
+
+$('#forgot-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#forgot-msg');
+  const button = e.target.querySelector('button[type="submit"]');
+  const email = $('#forgot-email').value.trim();
+
+  if (!email) return setMsg(msg, 'Please add your email.');
+
+  button.disabled = true;
+  setMsg(msg, 'Sending…', true);
+
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname,
+  });
+
+  button.disabled = false;
+  if (error) return setMsg(msg, error.message);
+
+  setMsg(msg, 'Check your inbox — the link is on its way. (Look in spam if you don\'t see it.)', true);
+  $('#forgot-form').reset();
+});
+
+// When the user clicks the link in their email, Supabase sends them back
+// here with a recovery token. This listens for that and opens the reset dialog.
+db.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    setMsg($('#reset-msg'), '');
+    $('#reset-password').value = '';
+    $('#reset-confirm').value = '';
+    openDialog('reset-dialog');
+  }
+});
+
+$('#reset-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#reset-msg');
+  const button = e.target.querySelector('button[type="submit"]');
+  const pw = $('#reset-password').value;
+  const pw2 = $('#reset-confirm').value;
+
+  if (pw.length < 8) return setMsg(msg, 'Password must be at least 8 characters.');
+  if (pw !== pw2) return setMsg(msg, 'The two passwords don\'t match.');
+
+  button.disabled = true;
+  setMsg(msg, 'Saving…', true);
+
+  const { error } = await db.auth.updateUser({ password: pw });
+
+  button.disabled = false;
+  if (error) return setMsg(msg, error.message);
+
+  setMsg(msg, 'Password updated. You\'re all set.', true);
+  setTimeout(() => {
+    $('#reset-dialog').close();
+    $('#reset-form').reset();
+  }, 1500);
+});
+
 /* ---------- 7. LOADING THE FEED ---------- */
 async function loadFeed() {
   const feed = $('#feed');
   updateHeading();
 
-  if (view.type !== 'search') {
+  if (view.type !== 'search' && view.type !== 'following') {
     $('#search-users').hidden = true;
     $('#search-users').innerHTML = '';
   }
@@ -351,6 +425,46 @@ async function loadFeed() {
       .order('created_at', { ascending: false });
     if (error) return showFeedError(error);
     posts = rows.map((r) => r.posts).filter((p) => p && (!p.is_hidden || p.user_id === me.id));
+  } else if (view.type === 'following') {
+    if (!me) { view = { type: 'latest' }; return loadFeed(); }
+
+    const { data: followRows, error: followErr } = await db
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', me.id);
+    if (followErr) return showFeedError(followErr);
+    const followIds = (followRows || []).map((r) => r.following_id);
+
+    const userBox = $('#search-users');
+    if (followIds.length > 0) {
+      const { data: followed } = await db
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', followIds);
+      if (followed && followed.length > 0) {
+        userBox.hidden = false;
+        userBox.innerHTML = followed.map((u) => `
+          <button class="search-user-btn" data-action="go-user" data-user-id="${u.id}" data-username="${esc(u.username)}">
+            ${avatarHtml(u, 'small')}<span>${esc(u.username)}</span>
+          </button>`).join('');
+      } else {
+        userBox.hidden = true;
+        userBox.innerHTML = '';
+      }
+
+      const { data: rows, error } = await db
+        .from('posts')
+        .select(postSelect)
+        .eq('is_hidden', false)
+        .in('user_id', followIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) return showFeedError(error);
+      posts = rows;
+    } else {
+      userBox.hidden = true;
+      userBox.innerHTML = '';
+    }
   } else if (view.type === 'user') {
     const { data: rows, error } = await db
       .from('posts')
@@ -401,9 +515,13 @@ async function loadFeed() {
   if (posts.length === 0) {
     const empty = view.type === 'saved'
       ? 'Nothing saved yet.'
-      : view.type === 'search'
-        ? 'No posts match your search.'
-        : 'Nothing here yet. Be the first to share something!';
+      : view.type === 'following'
+        ? (($('#search-users').hidden)
+            ? "You're not following anyone yet. Click any username on a post to see their profile and follow them."
+            : "The people you follow haven't posted anything yet — but they're up above whenever you want to check in.")
+        : view.type === 'search'
+          ? 'No posts match your search.'
+          : 'Nothing here yet. Be the first to share something!';
     feed.innerHTML = `<p class="note">${empty}</p>`;
     return;
   }
@@ -833,14 +951,16 @@ document.addEventListener('click', async (e) => {
 
   switch (action) {
     // header & navigation
-    case 'open-login':  openDialog('login-dialog'); break;
-    case 'open-signup': openDialog('signup-dialog'); break;
-    case 'open-rules':  openDialog('rules-dialog'); break;
-    case 'open-upload': openDialog('upload-dialog'); break;
-    case 'logout':      await logout(); break;
-    case 'go-latest':   view = { type: 'latest' }; $('#search-input').value = ''; await loadFeed(); break;
-    case 'go-saved':    view = { type: 'saved' }; await loadFeed(); break;
-    case 'my-profile':  view = { type: 'user', userId: me.id, username: me.username }; await loadFeed(); break;
+    case 'open-login':   openDialog('login-dialog'); break;
+    case 'open-signup':  openDialog('signup-dialog'); break;
+    case 'open-rules':   openDialog('rules-dialog'); break;
+    case 'open-upload':  openDialog('upload-dialog'); break;
+    case 'open-forgot':  openForgotPassword(); break;
+    case 'logout':       await logout(); break;
+    case 'go-latest':    view = { type: 'latest' };    $('#search-input').value = ''; await loadFeed(); break;
+    case 'go-following': view = { type: 'following' }; $('#search-input').value = ''; await loadFeed(); break;
+    case 'go-saved':     view = { type: 'saved' };     await loadFeed(); break;
+    case 'my-profile':   view = { type: 'user', userId: me.id, username: me.username }; await loadFeed(); break;
     case 'go-user':
       view = { type: 'user', userId: btn.dataset.userId, username: btn.dataset.username };
       await loadFeed();
