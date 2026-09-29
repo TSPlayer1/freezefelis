@@ -1,8 +1,8 @@
 /* =====================================================
-   FreezeFelis — script.js  (V0.7)
+   FreezeFelis — script.js  (V0.8)
    Adds: search, notifications, edit posts/comments,
    mentions, audio, boop, Following tab, forgot password,
-   "I'm facing a problem", Top tab, Back/Forward
+   "I'm facing a problem", Top tab, Back/Forward, joined date
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
@@ -27,7 +27,6 @@ let view = { type: 'latest' };
 let data = { posts: [], scores: {}, myVotes: {}, mySaves: new Set(), commentCounts: {} };
 let reportTarget = null;
 
-// In-site navigation history (so Back/Forward stay inside the site)
 let historyBack = [];
 let historyForward = [];
 
@@ -49,6 +48,11 @@ function linkifyMentions(escapedText) {
 
 function formatDate(iso) {
   return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function formatJoined(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString([], { month: 'long', year: 'numeric' });
 }
 
 function avatarHtml(profile, size = '') {
@@ -199,7 +203,7 @@ async function loadProfileHeader(userId) {
 
   const { data: profile, error } = await db
     .from('profiles')
-    .select('id, username, bio, avatar_url')
+    .select('id, username, bio, avatar_url, created_at')
     .eq('id', userId)
     .single();
 
@@ -236,7 +240,10 @@ async function loadProfileHeader(userId) {
     actionHtml = `<button class="btn ghost" data-action="open-login">Follow</button>`;
   }
 
+  const joined = formatJoined(profile.created_at);
+
   box.innerHTML = `
+    ${joined ? `<div class="profile-joined">joined ${esc(joined)}</div>` : ''}
     <div class="profile-top">
       ${avatarHtml(profile, 'large')}
       <div class="profile-info">
