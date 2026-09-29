@@ -24,6 +24,7 @@
   <main class="page">
     <nav class="tabs">
       <button id="tab-latest" class="tab" data-action="go-latest">Latest Uploads</button>
+      <button id="tab-top" class="tab" data-action="go-top">Top</button>
       <button id="tab-following" class="tab" data-action="go-following" hidden>Following</button>
       <button id="tab-saved" class="tab" data-action="go-saved" hidden>Saved</button>
       <form id="search-form" class="search-form">
@@ -42,7 +43,11 @@
 
   <footer class="footer">
     <p>No ads. No algorithms. Newest first. People shape discovery.</p>
-    <p><button class="link-btn" data-action="open-rules">Community rules</button></p>
+    <p>
+      <button class="link-btn" data-action="open-rules">Community rules</button>
+      &nbsp;·&nbsp;
+      <button class="link-btn" data-action="open-problem">I'm facing a problem</button>
+    </p>
   </footer>
 
 
@@ -179,6 +184,33 @@
     </form>
   </dialog>
 
+  <!-- I'm facing a problem -->
+  <dialog id="problem-dialog">
+    <form id="problem-form">
+      <h2>I'm facing a problem</h2>
+      <p class="small-note">Something broken? Stuck? Tell me what's happening — it lands straight in my inbox and I'll try to fix it.</p>
+      <label>What's happening?
+        <select id="problem-type">
+          <option>I can't log in</option>
+          <option>An upload failed</option>
+          <option>Something looks broken</option>
+          <option>Something else</option>
+        </select>
+      </label>
+      <label>Details <small>(the more you say, the faster I can fix it)</small>
+        <textarea id="problem-details" rows="4" maxlength="2000" required></textarea>
+      </label>
+      <label>Your email <small>(optional — only if you'd like a reply)</small>
+        <input type="email" id="problem-email">
+      </label>
+      <p id="problem-msg" class="form-msg"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn">Send</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Rules -->
   <dialog id="rules-dialog">
     <div class="rules">
@@ -199,9 +231,7 @@
     </div>
   </dialog>
 
-  <!-- Supabase library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- Our own code -->
   <script src="script.js"></script>
 </body>
 </html>

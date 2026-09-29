@@ -1,12 +1,19 @@
 /* =====================================================
-   FreezeFelis — script.js  (V0.4)
+   FreezeFelis — script.js  (V0.6)
    Adds: search, notifications, edit posts/comments,
-   mentions, audio, boop, Following tab, forgot password
+   mentions, audio, boop, Following tab, forgot password,
+   "I'm facing a problem", Top tab
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
 const SUPABASE_URL = 'https://nyjasgfyfrkpjrrnklkm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_cR28i7fxZ0I7P99QA69PVQ_ge-6CHQS';
+
+// 👇👇👇 PASTE YOUR FORMSPREE URL HERE 👇👇👇
+const FORMSPREE_URL = 'https://formspree.io/f/PASTE_YOURS_HERE';
+
+// How many days back the "Top" tab looks. Set to 0 for all-time.
+const TOP_WINDOW_DAYS = 7;
 
 const MAX_FILE_MB = 100;
 const MAX_AVATAR_MB = 5;
@@ -113,11 +120,17 @@ function updateHeader() {
 
 function updateHeading() {
   $('#tab-latest').classList.toggle('active', view.type === 'latest');
+  $('#tab-top').classList.toggle('active', view.type === 'top');
   $('#tab-following').classList.toggle('active', view.type === 'following');
   $('#tab-saved').classList.toggle('active', view.type === 'saved');
   if (view.type === 'latest') {
     $('#view-title').textContent = 'Latest Uploads';
     $('#view-sub').textContent = 'A space made for artists, people who genuinely love art. Whether you draw, paint, animate, sculpt, photograph, write, act, make music, create videos, or express yourself through any other form of art, you’re welcome here.';
+  } else if (view.type === 'top') {
+    $('#view-title').textContent = 'Top';
+    $('#view-sub').textContent = TOP_WINDOW_DAYS > 0
+      ? `The most-loved posts from the last ${TOP_WINDOW_DAYS} days.`
+      : 'The most-loved posts of all time.';
   } else if (view.type === 'following') {
     $('#view-title').textContent = 'Following';
     $('#view-sub').textContent = 'The newest work from the people you follow.';
@@ -328,8 +341,6 @@ async function loadNotifications() {
 }
 
 /* ---------- 6d. FORGOT PASSWORD ---------- */
-
-// "Forgot password?" was clicked — open the dialog and prefill email if they typed one
 function openForgotPassword() {
   const typedEmail = $('#login-email').value.trim();
   $('#forgot-email').value = typedEmail;
@@ -359,8 +370,6 @@ $('#forgot-form').addEventListener('submit', async (e) => {
   $('#forgot-form').reset();
 });
 
-// When the user clicks the link in their email, Supabase sends them back
-// here with a recovery token. This listens for that and opens the reset dialog.
 db.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY') {
     setMsg($('#reset-msg'), '');
@@ -395,6 +404,50 @@ $('#reset-form').addEventListener('submit', async (e) => {
   }, 1500);
 });
 
+/* ---------- 6e. "I'M FACING A PROBLEM" ---------- */
+$('#problem-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#problem-msg');
+  const button = e.target.querySelector('button[type="submit"]');
+  const type = $('#problem-type').value;
+  const details = $('#problem-details').value.trim();
+  const email = $('#problem-email').value.trim();
+
+  if (!details) return setMsg(msg, 'Please add some details.');
+
+  if (FORMSPREE_URL.includes('PASTE_YOURS_HERE')) {
+    return setMsg(msg, 'The form isn\'t connected yet — the site owner needs to add their Formspree URL in script.js.');
+  }
+
+  button.disabled = true;
+  setMsg(msg, 'Sending…', true);
+
+  try {
+    const res = await fetch(FORMSPREE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: `FreezeFelis problem: ${type}`,
+        what_kind: type,
+        details,
+        reply_email: email || '(not given)',
+        page: window.location.href,
+        when: new Date().toISOString(),
+      }),
+    });
+    if (!res.ok) throw new Error('Could not send. Please try again.');
+    $('#problem-form').reset();
+    setMsg(msg, 'Thank you — sent! 🌱', true);
+    setTimeout(() => {
+      $('#problem-dialog').close();
+      setMsg(msg, '');
+    }, 1500);
+  } catch (err) {
+    setMsg(msg, err.message || 'Something went wrong.');
+  }
+  button.disabled = false;
+});
+
 /* ---------- 7. LOADING THE FEED ---------- */
 async function loadFeed() {
   const feed = $('#feed');
@@ -425,6 +478,39 @@ async function loadFeed() {
       .order('created_at', { ascending: false });
     if (error) return showFeedError(error);
     posts = rows.map((r) => r.posts).filter((p) => p && (!p.is_hidden || p.user_id === me.id));
+  } else if (view.type === 'top') {
+    // 1) Highest-scoring posts first
+    const { data: scoreRows, error: scoreErr } = await db
+      .from('post_scores')
+      .select('post_id, score')
+      .order('score', { ascending: false })
+      .limit(200);
+    if (scoreErr) return showFeedError(scoreErr);
+
+    const scoreIds = (scoreRows || []).map((r) => r.post_id);
+    if (scoreIds.length === 0) {
+      posts = [];
+    } else {
+      // 2) Load those posts (skip hidden ones)
+      const { data: rows, error } = await db
+        .from('posts')
+        .select(postSelect)
+        .eq('is_hidden', false)
+        .in('id', scoreIds);
+      if (error) return showFeedError(error);
+
+      // 3) Put them back into score order
+      const order = new Map(scoreIds.map((id, i) => [id, i]));
+      let ordered = (rows || []).sort((a, b) => order.get(a.id) - order.get(b.id));
+
+      // 4) Optional time window (skipped if TOP_WINDOW_DAYS is 0)
+      if (TOP_WINDOW_DAYS > 0) {
+        const cutoff = Date.now() - TOP_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+        ordered = ordered.filter((p) => new Date(p.created_at).getTime() >= cutoff);
+      }
+
+      posts = ordered.slice(0, 50);
+    }
   } else if (view.type === 'following') {
     if (!me) { view = { type: 'latest' }; return loadFeed(); }
 
@@ -515,13 +601,15 @@ async function loadFeed() {
   if (posts.length === 0) {
     const empty = view.type === 'saved'
       ? 'Nothing saved yet.'
-      : view.type === 'following'
-        ? (($('#search-users').hidden)
-            ? "You're not following anyone yet. Click any username on a post to see their profile and follow them."
-            : "The people you follow haven't posted anything yet — but they're up above whenever you want to check in.")
-        : view.type === 'search'
-          ? 'No posts match your search.'
-          : 'Nothing here yet. Be the first to share something!';
+      : view.type === 'top'
+        ? 'No loved posts here yet. Give some upvotes and they\'ll show up!'
+        : view.type === 'following'
+          ? (($('#search-users').hidden)
+              ? "You're not following anyone yet. Click any username on a post to see their profile and follow them."
+              : "The people you follow haven't posted anything yet — but they're up above whenever you want to check in.")
+          : view.type === 'search'
+            ? 'No posts match your search.'
+            : 'Nothing here yet. Be the first to share something!';
     feed.innerHTML = `<p class="note">${empty}</p>`;
     return;
   }
@@ -589,7 +677,7 @@ function postHtml(p) {
           <button class="username-link" data-action="go-user" data-user-id="${p.user_id}" data-username="${esc(name)}">${esc(name)}</button>
           <span class="time">${formatDate(p.created_at)}</span>
         </div>
-        ${p.is_pinned ? '<span class="badge">📌 Pinned</span>' : ''}
+        ${p.is_pinned && view.type === 'user' ? '<span class="badge">📌 Pinned</span>' : ''}
         ${p.is_hidden ? '<span class="badge">Hidden (only you see this)</span>' : ''}
       </div>
       <h2 class="post-title">${esc(p.title)}</h2>
@@ -956,8 +1044,15 @@ document.addEventListener('click', async (e) => {
     case 'open-rules':   openDialog('rules-dialog'); break;
     case 'open-upload':  openDialog('upload-dialog'); break;
     case 'open-forgot':  openForgotPassword(); break;
+    case 'open-problem': {
+      $('#problem-form').reset();
+      setMsg($('#problem-msg'), '');
+      openDialog('problem-dialog');
+      break;
+    }
     case 'logout':       await logout(); break;
     case 'go-latest':    view = { type: 'latest' };    $('#search-input').value = ''; await loadFeed(); break;
+    case 'go-top':       view = { type: 'top' };       $('#search-input').value = ''; await loadFeed(); break;
     case 'go-following': view = { type: 'following' }; $('#search-input').value = ''; await loadFeed(); break;
     case 'go-saved':     view = { type: 'saved' };     await loadFeed(); break;
     case 'my-profile':   view = { type: 'user', userId: me.id, username: me.username }; await loadFeed(); break;
