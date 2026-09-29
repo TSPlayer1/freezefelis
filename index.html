@@ -23,14 +23,17 @@
   <!-- ===== MAIN PAGE ===== -->
   <main class="page">
     <nav class="tabs">
+      <button id="back-btn" class="nav-btn" data-action="go-back" title="Back" disabled>←</button>
+      <button id="forward-btn" class="nav-btn" data-action="go-forward" title="Forward" disabled>→</button>
       <button id="tab-latest" class="tab" data-action="go-latest">Latest Uploads</button>
       <button id="tab-top" class="tab" data-action="go-top">Top</button>
       <button id="tab-following" class="tab" data-action="go-following" hidden>Following</button>
       <button id="tab-saved" class="tab" data-action="go-saved" hidden>Saved</button>
-      <form id="search-form" class="search-form">
-        <input type="text" id="search-input" placeholder="Search posts or people…" maxlength="60">
-      </form>
     </nav>
+
+    <form id="search-form" class="search-form">
+      <input type="text" id="search-input" placeholder="Search posts or people…" maxlength="60">
+    </form>
 
     <h1 id="view-title">Latest Uploads</h1>
     <p id="view-sub" class="subtitle"></p>

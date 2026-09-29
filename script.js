@@ -1,8 +1,8 @@
 /* =====================================================
-   FreezeFelis — script.js  (V0.6)
+   FreezeFelis — script.js  (V0.7)
    Adds: search, notifications, edit posts/comments,
    mentions, audio, boop, Following tab, forgot password,
-   "I'm facing a problem", Top tab
+   "I'm facing a problem", Top tab, Back/Forward
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
@@ -26,6 +26,10 @@ let me = null;
 let view = { type: 'latest' };
 let data = { posts: [], scores: {}, myVotes: {}, mySaves: new Set(), commentCounts: {} };
 let reportTarget = null;
+
+// In-site navigation history (so Back/Forward stay inside the site)
+let historyBack = [];
+let historyForward = [];
 
 /* ---------- 4. SMALL HELPERS ---------- */
 const $ = (selector) => document.querySelector(selector);
@@ -71,6 +75,46 @@ function requireLogin() {
   return false;
 }
 
+/* ---------- 4b. IN-SITE NAVIGATION (Back / Forward) ---------- */
+function viewsAreSame(a, b) {
+  return a && b
+    && a.type === b.type
+    && a.userId === b.userId
+    && a.query === b.query;
+}
+
+function updateNavButtons() {
+  const backBtn = document.getElementById('back-btn');
+  const fwdBtn = document.getElementById('forward-btn');
+  if (backBtn) backBtn.disabled = historyBack.length === 0;
+  if (fwdBtn) fwdBtn.disabled = historyForward.length === 0;
+}
+
+function navigateTo(newView) {
+  if (viewsAreSame(view, newView)) return Promise.resolve();
+  historyBack.push({ ...view });
+  historyForward = [];
+  view = newView;
+  updateNavButtons();
+  return loadFeed();
+}
+
+async function goBack() {
+  if (historyBack.length === 0) return;
+  historyForward.push({ ...view });
+  view = historyBack.pop();
+  updateNavButtons();
+  await loadFeed();
+}
+
+async function goForward() {
+  if (historyForward.length === 0) return;
+  historyBack.push({ ...view });
+  view = historyForward.pop();
+  updateNavButtons();
+  await loadFeed();
+}
+
 /* ---------- 5. LOGIN STATE & HEADER ---------- */
 async function setUser(user) {
   me = null;
@@ -96,6 +140,7 @@ async function setUser(user) {
   updateHeader();
   if (me) loadUnreadCount();
   await loadFeed();
+  updateNavButtons();
 }
 
 function updateHeader() {
@@ -479,7 +524,6 @@ async function loadFeed() {
     if (error) return showFeedError(error);
     posts = rows.map((r) => r.posts).filter((p) => p && (!p.is_hidden || p.user_id === me.id));
   } else if (view.type === 'top') {
-    // 1) Highest-scoring posts first
     const { data: scoreRows, error: scoreErr } = await db
       .from('post_scores')
       .select('post_id, score')
@@ -491,7 +535,6 @@ async function loadFeed() {
     if (scoreIds.length === 0) {
       posts = [];
     } else {
-      // 2) Load those posts (skip hidden ones)
       const { data: rows, error } = await db
         .from('posts')
         .select(postSelect)
@@ -499,11 +542,9 @@ async function loadFeed() {
         .in('id', scoreIds);
       if (error) return showFeedError(error);
 
-      // 3) Put them back into score order
       const order = new Map(scoreIds.map((id, i) => [id, i]));
       let ordered = (rows || []).sort((a, b) => order.get(a.id) - order.get(b.id));
 
-      // 4) Optional time window (skipped if TOP_WINDOW_DAYS is 0)
       if (TOP_WINDOW_DAYS > 0) {
         const cutoff = Date.now() - TOP_WINDOW_DAYS * 24 * 60 * 60 * 1000;
         ordered = ordered.filter((p) => new Date(p.created_at).getTime() >= cutoff);
@@ -950,8 +991,11 @@ $('#login-form').addEventListener('submit', async (e) => {
 
 async function logout() {
   await db.auth.signOut();
+  historyBack = [];
+  historyForward = [];
   view = { type: 'latest' };
   await setUser(null);
+  updateNavButtons();
 }
 
 /* ---------- 14. SHARING A NEW POST ---------- */
@@ -998,8 +1042,7 @@ $('#upload-form').addEventListener('submit', async (e) => {
     $('#upload-form').reset();
     setMsg(msg, '');
     $('#upload-dialog').close();
-    view = { type: 'latest' };
-    await loadFeed();
+    await navigateTo({ type: 'latest' });
   } catch (err) {
     setMsg(msg, err.message || 'Something went wrong.');
   }
@@ -1011,12 +1054,10 @@ $('#search-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = $('#search-input').value.trim();
   if (!q) {
-    view = { type: 'latest' };
-    await loadFeed();
+    await navigateTo({ type: 'latest' });
     return;
   }
-  view = { type: 'search', query: q };
-  await loadFeed();
+  await navigateTo({ type: 'search', query: q });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
@@ -1051,22 +1092,22 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'logout':       await logout(); break;
-    case 'go-latest':    view = { type: 'latest' };    $('#search-input').value = ''; await loadFeed(); break;
-    case 'go-top':       view = { type: 'top' };       $('#search-input').value = ''; await loadFeed(); break;
-    case 'go-following': view = { type: 'following' }; $('#search-input').value = ''; await loadFeed(); break;
-    case 'go-saved':     view = { type: 'saved' };     await loadFeed(); break;
-    case 'my-profile':   view = { type: 'user', userId: me.id, username: me.username }; await loadFeed(); break;
+    case 'go-back':      await goBack(); break;
+    case 'go-forward':   await goForward(); break;
+    case 'go-latest':    $('#search-input').value = ''; await navigateTo({ type: 'latest' }); break;
+    case 'go-top':       $('#search-input').value = ''; await navigateTo({ type: 'top' }); break;
+    case 'go-following': $('#search-input').value = ''; await navigateTo({ type: 'following' }); break;
+    case 'go-saved':     await navigateTo({ type: 'saved' }); break;
+    case 'my-profile':   await navigateTo({ type: 'user', userId: me.id, username: me.username }); break;
     case 'go-user':
-      view = { type: 'user', userId: btn.dataset.userId, username: btn.dataset.username };
-      await loadFeed();
+      await navigateTo({ type: 'user', userId: btn.dataset.userId, username: btn.dataset.username });
       window.scrollTo({ top: 0, behavior: 'smooth' });
       break;
     case 'go-username': {
       const uname = btn.dataset.username;
       const { data: p } = await db.from('profiles').select('id, username').eq('username', uname).maybeSingle();
       if (!p) { alert('@' + uname + ' not found.'); break; }
-      view = { type: 'user', userId: p.id, username: p.username };
-      await loadFeed();
+      await navigateTo({ type: 'user', userId: p.id, username: p.username });
       window.scrollTo({ top: 0, behavior: 'smooth' });
       break;
     }
@@ -1096,8 +1137,7 @@ document.addEventListener('click', async (e) => {
       document.getElementById('notif-dropdown').hidden = true;
       await loadUnreadCount();
       if (nPostId) {
-        view = { type: 'latest' };
-        await loadFeed();
+        await navigateTo({ type: 'latest' });
         setTimeout(() => {
           const target = document.querySelector(`.post[data-id="${nPostId}"]`);
           if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1126,8 +1166,11 @@ document.addEventListener('click', async (e) => {
       }
       alert('Your account has been deleted');
       await db.auth.signOut();
+      historyBack = [];
+      historyForward = [];
       view = { type: 'latest' };
       await setUser(null);
+      updateNavButtons();
       break;
     }
     case 'toggle-follow': {
@@ -1200,5 +1243,6 @@ document.addEventListener('click', async (e) => {
 async function start() {
   const { data: { session } } = await db.auth.getSession();
   await setUser(session ? session.user : null);
+  updateNavButtons();
 }
 start();

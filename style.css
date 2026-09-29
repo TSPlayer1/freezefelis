@@ -75,7 +75,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 
 .link-btn {
   background: none; border: none; padding: 0;
-  color: var(--accent-dark); text-decoration: ;
+  color: var(--accent-dark); text-decoration: none;
 }
 .link-btn.danger, .danger { color: var(--danger); }
 
@@ -91,11 +91,39 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
 }
 .tab.active { background: var(--peach); color: var(--text); border-color: var(--peach); }
 
-.search-form { margin-left: auto; }
-.search-form input {
-  width: 200px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
-  background: white; font-family: inherit; font-size: 0.9rem;
+/* ===== Back / Forward nav buttons ===== */
+.nav-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.nav-btn:hover:not(:disabled) { background: var(--peach); }
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ===== Search (own full-width row, under the tabs) ===== */
+.search-form {
+  margin: 14px 0 20px;
+}
+.search-form input {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgb(23, 22, 22);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+.search-form input::placeholder { color: var(--muted); opacity: 0.7; }
 
 .note { color: var(--muted); text-align: center; padding: 30px 0; }
 
@@ -142,17 +170,8 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   opacity: 1;
   font-size: 1.05rem;
 }
-
-.act:hover {
-  color: white;
-  background: var(--peach);
-}
-
-.act.on {
-  color: white;
-  background: var(--peach);
-  border-color: var(--accent);
-}
+.act:hover { color: white; background: var(--peach); }
+.act.on { color: white; background: var(--peach); border-color: var(--accent); }
 .score { min-width: 1.5em; text-align: center; font-weight: bold; }
 .spacer { flex: 1; }
 .actions .link-btn { font-size: 0.85rem; color: var(--muted); }
@@ -256,6 +275,19 @@ dialog label.check input { width: auto; margin-top: 5px; }
 .rules ol { padding-left: 20px; }
 .rules li { margin-bottom: 8px; }
 
+/* Dropdowns in dialogs (used by the "I'm facing a problem" form) */
+dialog select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgb(23, 22, 22);
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  margin-top: 4px;
+}
+
 /* ===== Footer ===== */
 .footer { text-align: center; color: var(--muted); font-size: 0.9rem; padding: 20px 16px 40px; }
 
@@ -263,10 +295,9 @@ dialog label.check input { width: auto; margin-top: 5px; }
   .post { padding: 12px; }
   h1 { font-size: 1.5rem; }
   .profile-top { flex-direction: column; align-items: flex-start; }
-  .search-form { width: 100%; margin-left: 0; }
-  .search-form input { width: 100%; }
   .notif-dropdown { width: 260px; right: -60px; }
 }
+
 /* ===== @Mentions ===== */
 .mention {
   background: none;
@@ -281,6 +312,7 @@ dialog label.check input { width: auto; margin-top: 5px; }
   vertical-align: baseline;
 }
 .mention:hover { text-decoration: underline; }
+
 /* Audio player sits nicely inside a post card */
 audio.audio-media {
   display: block;
