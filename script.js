@@ -1,20 +1,15 @@
 /* =====================================================
-   FreezeFelis — script.js  (V0.8)
-   Adds: search, notifications, edit posts/comments,
-   mentions, audio, boop, Following tab, forgot password,
-   "I'm facing a problem", Top tab, Back/Forward, joined date
+   FreezeFelis — script.js  (V0.9)
+   Adds: private profile notes, notification delete,
+   safety links (in footer)
    ===================================================== */
 
 /* ---------- 1. YOUR SETTINGS ---------- */
 const SUPABASE_URL = 'https://nyjasgfyfrkpjrrnklkm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_cR28i7fxZ0I7P99QA69PVQ_ge-6CHQS';
 
-// 👇👇👇 PASTE YOUR FORMSPREE URL HERE 👇👇👇
 const FORMSPREE_URL = 'https://formspree.io/f/PASTE_YOURS_HERE';
-
-// How many days back the "Top" tab looks. Set to 0 for all-time.
 const TOP_WINDOW_DAYS = 7;
-
 const MAX_FILE_MB = 100;
 const MAX_AVATAR_MB = 5;
 
@@ -79,7 +74,7 @@ function requireLogin() {
   return false;
 }
 
-/* ---------- 4b. IN-SITE NAVIGATION (Back / Forward) ---------- */
+/* ---------- 4b. IN-SITE NAVIGATION ---------- */
 function viewsAreSame(a, b) {
   return a && b
     && a.type === b.type
@@ -212,10 +207,15 @@ async function loadProfileHeader(userId) {
     return;
   }
 
-  const [followerResult, followingResult] = await Promise.all([
+  const [followerResult, followingResult, myNoteResult] = await Promise.all([
     db.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
     db.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', userId),
+    me
+      ? db.from('profile_notes').select('body').eq('viewer_id', me.id).eq('profile_id', userId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  const myNote = myNoteResult?.data?.body || '';
 
   let iFollow = false;
   if (me && me.id !== userId) {
@@ -242,6 +242,17 @@ async function loadProfileHeader(userId) {
 
   const joined = formatJoined(profile.created_at);
 
+  const noteHtml = me ? `
+    <details class="profile-note">
+      <summary>📝 Your private note${myNote ? ' · has note' : ''}</summary>
+      <textarea class="note-body" rows="3" maxlength="2000" placeholder="Something kind, something private…">${esc(myNote)}</textarea>
+      <div class="note-actions">
+        <button class="btn small" data-action="save-note" data-profile-id="${userId}">Save</button>
+        <span class="note-msg"></span>
+      </div>
+    </details>
+  ` : '';
+
   box.innerHTML = `
     ${joined ? `<div class="profile-joined">joined ${esc(joined)}</div>` : ''}
     <div class="profile-top">
@@ -255,7 +266,8 @@ async function loadProfileHeader(userId) {
         </div>
       </div>
     </div>
-    <div class="profile-actions">${actionHtml}</div>`;
+    <div class="profile-actions">${actionHtml}</div>
+    ${noteHtml}`;
 }
 
 async function toggleFollow(userId, wasFollowing) {
@@ -385,10 +397,13 @@ async function loadNotifications() {
       <button class="link-btn" data-action="mark-all-read">Mark all read</button>
     </div>
     ${rows.map((n) => `
-      <button class="notif-item ${n.is_read ? '' : 'unread'}" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
-        <span>${esc(n.message)}</span>
-        <span class="time">${formatDate(n.created_at)}</span>
-      </button>
+      <div class="notif-row ${n.is_read ? '' : 'unread'}">
+        <button class="notif-item" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
+          <span>${esc(n.message)}</span>
+          <span class="time">${formatDate(n.created_at)}</span>
+        </button>
+        <button class="notif-delete" data-action="delete-notif" data-id="${n.id}" title="Remove this notification">✕</button>
+      </div>
     `).join('')}`;
 }
 
@@ -1137,6 +1152,14 @@ document.addEventListener('click', async (e) => {
       await loadUnreadCount();
       break;
     }
+    case 'delete-notif': {
+      e.stopPropagation();
+      const nid = Number(btn.dataset.id);
+      await db.from('notifications').delete().eq('id', nid);
+      await loadNotifications();
+      await loadUnreadCount();
+      break;
+    }
     case 'open-notif': {
       const nid = Number(btn.dataset.id);
       const nPostId = btn.dataset.postId ? Number(btn.dataset.postId) : null;
@@ -1155,6 +1178,36 @@ document.addEventListener('click', async (e) => {
 
     // profile page
     case 'edit-profile': await openEditProfile(); break;
+    case 'save-note': {
+      if (!me) break;
+      const pid = btn.dataset.profileId;
+      const details = btn.closest('.profile-note');
+      const ta = details.querySelector('.note-body');
+      const body = ta.value.trim();
+      const feedback = details.querySelector('.note-msg');
+      const summary = details.querySelector('summary');
+      feedback.textContent = 'Saving…';
+      try {
+        if (!body) {
+          const { error } = await db.from('profile_notes')
+            .delete().eq('viewer_id', me.id).eq('profile_id', pid);
+          if (error) throw error;
+        } else {
+          const { error } = await db.from('profile_notes')
+            .upsert({ viewer_id: me.id, profile_id: pid, body },
+                     { onConflict: 'viewer_id,profile_id' });
+          if (error) throw error;
+        }
+        feedback.textContent = 'Saved 🌱';
+        summary.textContent = body
+          ? '📝 Your private note · has note'
+          : '📝 Your private note';
+        setTimeout(() => { feedback.textContent = ''; }, 1500);
+      } catch (err) {
+        feedback.textContent = err.message || 'Error';
+      }
+      break;
+    }
     case 'delete-account': {
       const typed = prompt(
         'This will permanently delete your account, along with all your posts, comments, votes, saves, follows and uploaded files.\n\n' +
