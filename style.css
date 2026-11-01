@@ -161,6 +161,7 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   border-top: 1px solid var(--line); padding-top: 10px;
 }
+/* Make the vote/save/comment icons white */
 .act {
   background: none;
   border: none;
@@ -207,6 +208,7 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
 .profile-counts strong { color: var(--text); }
 .profile-actions { margin-top: 14px; }
 
+/* Joined date — quiet, top-right of the profile card */
 .profile-joined {
   text-align: right;
   font-size: 0.8rem;
@@ -214,36 +216,6 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   opacity: 0.7;
   margin: -4px 0 10px;
   letter-spacing: 0.02em;
-}
-
-/* ===== Private profile note ===== */
-.profile-note {
-  margin-top: 16px;
-  border-top: 1px dashed var(--line);
-  padding-top: 12px;
-}
-.profile-note summary {
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--muted);
-  list-style: none;
-}
-.profile-note summary::-webkit-details-marker { display: none; }
-.profile-note summary::before { content: '▸ '; }
-.profile-note[open] summary::before { content: '▾ '; }
-.profile-note .note-body {
-  margin-top: 10px;
-  width: 100%;
-}
-.profile-note .note-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 6px;
-}
-.profile-note .note-msg {
-  font-size: 0.85rem;
-  color: var(--muted);
 }
 
 /* ===== Notifications ===== */
@@ -265,36 +237,14 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   display: flex; justify-content: space-between; align-items: center;
   padding: 4px 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
 }
-
-.notif-row {
-  display: flex;
-  align-items: stretch;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 2px;
-}
-.notif-row.unread { background: #6a5d2e; }
-.notif-row:hover { background: var(--peach); }
-
 .notif-item {
-  flex: 1;
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  text-align: left; background: none; border: none;
-  padding: 8px 6px; color: var(--text); cursor: pointer;
+  width: 100%; text-align: left; background: none; border: none;
+  padding: 8px 6px; border-radius: 8px; color: var(--text);
 }
+.notif-item:hover { background: var(--peach); }
+.notif-item.unread { background: #6a5d2e; }
 .notif-item .time { color: var(--muted); font-size: 0.75rem; }
-
-.notif-delete {
-  background: none;
-  border: none;
-  color: var(--muted);
-  opacity: 0.5;
-  padding: 0 10px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: opacity 0.15s, color 0.15s;
-}
-.notif-delete:hover { opacity: 1; color: var(--danger); }
 
 /* ===== Comments ===== */
 .comments { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
@@ -335,6 +285,7 @@ dialog label.check input { width: auto; margin-top: 5px; }
 .rules ol { padding-left: 20px; }
 .rules li { margin-bottom: 8px; }
 
+/* Dropdowns in dialogs (used by the "I'm facing a problem" form) */
 dialog select {
   width: 100%;
   padding: 8px 10px;
@@ -349,18 +300,6 @@ dialog select {
 
 /* ===== Footer ===== */
 .footer { text-align: center; color: var(--muted); font-size: 0.9rem; padding: 20px 16px 40px; }
-
-.safety-links {
-  font-size: 0.85rem;
-  color: var(--muted);
-  opacity: 0.85;
-  margin-top: 10px;
-}
-.safety-links a {
-  color: var(--accent);
-  text-decoration: none;
-}
-.safety-links a:hover { text-decoration: underline; }
 
 @media (max-width: 480px) {
   .post { padding: 12px; }
@@ -384,6 +323,7 @@ dialog select {
 }
 .mention:hover { text-decoration: underline; }
 
+/* Audio player sits nicely inside a post card */
 audio.audio-media {
   display: block;
   width: 100%;
