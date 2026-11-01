@@ -161,7 +161,6 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   border-top: 1px solid var(--line); padding-top: 10px;
 }
-/* Make the vote/save/comment icons white */
 .act {
   background: none;
   border: none;
@@ -208,7 +207,6 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
 .profile-counts strong { color: var(--text); }
 .profile-actions { margin-top: 14px; }
 
-/* Joined date — quiet, top-right of the profile card */
 .profile-joined {
   text-align: right;
   font-size: 0.8rem;
@@ -268,7 +266,6 @@ h1 { margin: 16px 0 4px; font-size: 1.8rem; }
   padding: 4px 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
 }
 
-/* Notif rows with delete button */
 .notif-row {
   display: flex;
   align-items: stretch;
@@ -338,7 +335,6 @@ dialog label.check input { width: auto; margin-top: 5px; }
 .rules ol { padding-left: 20px; }
 .rules li { margin-bottom: 8px; }
 
-/* Dropdowns in dialogs (used by the "I'm facing a problem" form) */
 dialog select {
   width: 100%;
   padding: 8px 10px;
@@ -354,7 +350,6 @@ dialog select {
 /* ===== Footer ===== */
 .footer { text-align: center; color: var(--muted); font-size: 0.9rem; padding: 20px 16px 40px; }
 
-/* Safety links in the footer */
 .safety-links {
   font-size: 0.85rem;
   color: var(--muted);
@@ -389,7 +384,6 @@ dialog select {
 }
 .mention:hover { text-decoration: underline; }
 
-/* Audio player sits nicely inside a post card */
 audio.audio-media {
   display: block;
   width: 100%;
