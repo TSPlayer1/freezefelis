@@ -95,7 +95,7 @@
     </form>
   </dialog>
 
-  <!-- Set a new password (opened from the email link) -->
+  <!-- Set a new password -->
   <dialog id="reset-dialog">
     <form id="reset-form">
       <h2>Choose a new password</h2>
@@ -177,6 +177,20 @@
       <hr style="border: none; border-top: 1px solid var(--line); margin: 16px 0 10px;">
       <button type="button" class="link-btn danger" data-action="delete-account">Delete my account</button>
     </form>
+  </dialog>
+
+  <!-- My notes -->
+  <dialog id="notes-dialog">
+    <div class="notes-wrap">
+      <div class="notes-head">
+        <h2>📝 My notes</h2>
+        <button type="button" class="link-btn" data-close>Close</button>
+      </div>
+      <div class="notes-list" id="notes-list"></div>
+      <div class="notes-foot">
+        <button type="button" class="btn" data-action="new-note">＋ New note</button>
+      </div>
+    </div>
   </dialog>
 
   <!-- Report -->

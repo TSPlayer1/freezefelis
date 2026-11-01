@@ -385,10 +385,13 @@ async function loadNotifications() {
       <button class="link-btn" data-action="mark-all-read">Mark all read</button>
     </div>
     ${rows.map((n) => `
-      <button class="notif-item ${n.is_read ? '' : 'unread'}" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
-        <span>${esc(n.message)}</span>
-        <span class="time">${formatDate(n.created_at)}</span>
-      </button>
+      <div class="notif-row ${n.is_read ? '' : 'unread'}">
+        <button class="notif-item" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
+          <span>${esc(n.message)}</span>
+          <span class="time">${formatDate(n.created_at)}</span>
+        </button>
+        <button class="notif-delete" data-action="delete-notif" data-id="${n.id}" title="Remove this notification">✕</button>
+      </div>
     `).join('')}`;
 }
 
@@ -1133,6 +1136,13 @@ document.addEventListener('click', async (e) => {
     }
     case 'mark-all-read': {
       await db.from('notifications').update({ is_read: true }).eq('user_id', me.id).eq('is_read', false);
+      await loadNotifications();
+      await loadUnreadCount();
+      break;
+    }
+    case 'delete-notif': {
+      const nid = Number(btn.dataset.id);
+      await db.from('notifications').delete().eq('id', nid);
       await loadNotifications();
       await loadUnreadCount();
       break;
