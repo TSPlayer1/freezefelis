@@ -1,19 +1,27 @@
 /* =====================================================
-   FreezeFelis — script.js
+   FreezeFelis — script.js  (V0.8)
+   Adds: search, notifications, edit posts/comments,
+   mentions, audio, boop, Following tab, forgot password,
+   "I'm facing a problem", Top tab, Back/Forward, joined date
    ===================================================== */
 
+/* ---------- 1. YOUR SETTINGS ---------- */
 const SUPABASE_URL = 'https://nyjasgfyfrkpjrrnklkm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_cR28i7fxZ0I7P99QA69PVQ_ge-6CHQS';
 
-// Paste your Formspree form URL here (formspree.io → New form → copy the endpoint)
+// 👇👇👇 PASTE YOUR FORMSPREE URL HERE 👇👇👇
 const FORMSPREE_URL = 'https://formspree.io/f/PASTE_YOURS_HERE';
 
+// How many days back the "Top" tab looks. Set to 0 for all-time.
 const TOP_WINDOW_DAYS = 7;
+
 const MAX_FILE_MB = 100;
 const MAX_AVATAR_MB = 5;
 
+/* ---------- 2. CONNECT TO SUPABASE ---------- */
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+/* ---------- 3. APP MEMORY ---------- */
 let me = null;
 let view = { type: 'latest' };
 let data = { posts: [], scores: {}, myVotes: {}, mySaves: new Set(), commentCounts: {} };
@@ -22,6 +30,7 @@ let reportTarget = null;
 let historyBack = [];
 let historyForward = [];
 
+/* ---------- 4. SMALL HELPERS ---------- */
 const $ = (selector) => document.querySelector(selector);
 
 function esc(text) {
@@ -70,6 +79,7 @@ function requireLogin() {
   return false;
 }
 
+/* ---------- 4b. IN-SITE NAVIGATION (Back / Forward) ---------- */
 function viewsAreSame(a, b) {
   return a && b
     && a.type === b.type
@@ -109,6 +119,7 @@ async function goForward() {
   await loadFeed();
 }
 
+/* ---------- 5. LOGIN STATE & HEADER ---------- */
 async function setUser(user) {
   me = null;
   if (user) {
@@ -184,6 +195,7 @@ function updateHeading() {
   }
 }
 
+/* ---------- 6. PROFILE HEADER ---------- */
 async function loadProfileHeader(userId) {
   const box = $('#profile-header');
   box.hidden = false;
@@ -200,15 +212,10 @@ async function loadProfileHeader(userId) {
     return;
   }
 
-  const [followerResult, followingResult, myNoteResult] = await Promise.all([
+  const [followerResult, followingResult] = await Promise.all([
     db.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
     db.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', userId),
-    me
-      ? db.from('profile_notes').select('body').eq('viewer_id', me.id).eq('profile_id', userId).maybeSingle()
-      : Promise.resolve({ data: null }),
   ]);
-
-  const myNote = myNoteResult?.data?.body || '';
 
   let iFollow = false;
   if (me && me.id !== userId) {
@@ -235,17 +242,6 @@ async function loadProfileHeader(userId) {
 
   const joined = formatJoined(profile.created_at);
 
-  const noteHtml = me ? `
-    <details class="profile-note">
-      <summary>📝 Your private note${myNote ? ' · has note' : ''}</summary>
-      <textarea class="note-body" rows="3" maxlength="2000" placeholder="Something kind, something private…">${esc(myNote)}</textarea>
-      <div class="note-actions">
-        <button class="btn small" data-action="save-note" data-profile-id="${userId}">Save</button>
-        <span class="note-msg"></span>
-      </div>
-    </details>
-  ` : '';
-
   box.innerHTML = `
     ${joined ? `<div class="profile-joined">joined ${esc(joined)}</div>` : ''}
     <div class="profile-top">
@@ -259,8 +255,7 @@ async function loadProfileHeader(userId) {
         </div>
       </div>
     </div>
-    <div class="profile-actions">${actionHtml}</div>
-    ${noteHtml}`;
+    <div class="profile-actions">${actionHtml}</div>`;
 }
 
 async function toggleFollow(userId, wasFollowing) {
@@ -275,6 +270,7 @@ async function toggleFollow(userId, wasFollowing) {
   await loadProfileHeader(userId);
 }
 
+/* ---------- 6b. EDIT PROFILE ---------- */
 async function openEditProfile() {
   const { data: profile } = await db
     .from('profiles')
@@ -344,6 +340,7 @@ $('#profile-form').addEventListener('submit', async (e) => {
   button.disabled = false;
 });
 
+/* ---------- 6c. NOTIFICATIONS ---------- */
 async function loadUnreadCount() {
   if (!me) return;
   const badge = document.getElementById('notif-badge');
@@ -388,16 +385,14 @@ async function loadNotifications() {
       <button class="link-btn" data-action="mark-all-read">Mark all read</button>
     </div>
     ${rows.map((n) => `
-      <div class="notif-row ${n.is_read ? '' : 'unread'}">
-        <button class="notif-item" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
-          <span>${esc(n.message)}</span>
-          <span class="time">${formatDate(n.created_at)}</span>
-        </button>
-        <button class="notif-delete" data-action="delete-notif" data-id="${n.id}" title="Remove this notification">✕</button>
-      </div>
+      <button class="notif-item ${n.is_read ? '' : 'unread'}" data-action="open-notif" data-id="${n.id}" ${n.post_id ? `data-post-id="${n.post_id}"` : ''}>
+        <span>${esc(n.message)}</span>
+        <span class="time">${formatDate(n.created_at)}</span>
+      </button>
     `).join('')}`;
 }
 
+/* ---------- 6d. FORGOT PASSWORD ---------- */
 function openForgotPassword() {
   const typedEmail = $('#login-email').value.trim();
   $('#forgot-email').value = typedEmail;
@@ -461,6 +456,7 @@ $('#reset-form').addEventListener('submit', async (e) => {
   }, 1500);
 });
 
+/* ---------- 6e. "I'M FACING A PROBLEM" ---------- */
 $('#problem-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = $('#problem-msg');
@@ -470,6 +466,10 @@ $('#problem-form').addEventListener('submit', async (e) => {
   const email = $('#problem-email').value.trim();
 
   if (!details) return setMsg(msg, 'Please add some details.');
+
+  if (FORMSPREE_URL.includes('PASTE_YOURS_HERE')) {
+    return setMsg(msg, 'The form isn\'t connected yet — the site owner needs to add their Formspree URL in script.js.');
+  }
 
   button.disabled = true;
   setMsg(msg, 'Sending…', true);
@@ -487,7 +487,7 @@ $('#problem-form').addEventListener('submit', async (e) => {
         when: new Date().toISOString(),
       }),
     });
-    if (!res.ok) throw new Error('send failed');
+    if (!res.ok) throw new Error('Could not send. Please try again.');
     $('#problem-form').reset();
     setMsg(msg, 'Thank you — sent! 🌱', true);
     setTimeout(() => {
@@ -495,11 +495,12 @@ $('#problem-form').addEventListener('submit', async (e) => {
       setMsg(msg, '');
     }, 1500);
   } catch (err) {
-    setMsg(msg, 'Couldn\'t send right now — please try again in a moment.');
+    setMsg(msg, err.message || 'Something went wrong.');
   }
   button.disabled = false;
 });
 
+/* ---------- 7. LOADING THE FEED ---------- */
 async function loadFeed() {
   const feed = $('#feed');
   updateHeading();
@@ -678,9 +679,10 @@ async function loadFeed() {
 }
 
 function showFeedError(error) {
-  $('#feed').innerHTML = `<p class="note">Couldn't load posts right now. Please try again in a moment.</p>`;
+  $('#feed').innerHTML = `<p class="note">Couldn't load posts: ${esc(error.message)}<br>Check your URL and key at the top of script.js.</p>`;
 }
 
+/* ---------- 8. DRAWING A POST ---------- */
 function actionsHtml(p) {
   const vote = data.myVotes[p.id] || 0;
   const saved = data.mySaves.has(p.id);
@@ -746,6 +748,7 @@ function refreshActions(postId) {
   if (card && post) card.querySelector('.actions').innerHTML = actionsHtml(post);
 }
 
+/* ---------- 9. VOTES & SAVES ---------- */
 async function vote(postId, value) {
   if (!requireLogin()) return;
   const current = data.myVotes[postId] || 0;
@@ -776,6 +779,7 @@ async function toggleSave(postId) {
   refreshActions(postId);
 }
 
+/* ---------- 10. OWN-POST ACTIONS ---------- */
 async function togglePin(postId) {
   const post = data.posts.find((p) => p.id === postId);
   const { error } = await db.from('posts').update({ is_pinned: !post.is_pinned }).eq('id', postId);
@@ -803,6 +807,7 @@ async function deletePost(postId) {
   await loadFeed();
 }
 
+/* ---------- 10b. EDIT A POST (inline) ---------- */
 function openEditPost(card, postId) {
   if (card.querySelector('.edit-post-form')) return;
   const post = data.posts.find((p) => p.id === postId);
@@ -834,6 +839,7 @@ async function saveEditPost(card, postId) {
   await loadFeed();
 }
 
+/* ---------- 11. COMMENTS ---------- */
 async function loadComments(postId, card) {
   const list = card.querySelector('.comment-list');
   const { data: rows, error } = await db
@@ -924,6 +930,7 @@ async function saveEditComment(postId, card, commentEl, commentId) {
   await loadComments(postId, card);
 }
 
+/* ---------- 12. REPORTS ---------- */
 function startReport(type, id) {
   if (!requireLogin()) return;
   reportTarget = { type, id };
@@ -943,9 +950,10 @@ $('#report-form').addEventListener('submit', async (e) => {
   const { error } = await db.from('reports').insert(row);
   if (error) return setMsg($('#report-msg'), error.message);
   $('#report-dialog').close();
-  alert('Thank you. A human will take a look.');
+  alert('Thank you. A moderator will take a look.');
 });
 
+/* ---------- 13. SIGN UP / LOG IN / LOG OUT ---------- */
 $('#signup-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = $('#signup-msg');
@@ -997,6 +1005,7 @@ async function logout() {
   updateNavButtons();
 }
 
+/* ---------- 14. SHARING A NEW POST ---------- */
 $('#upload-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!me) return;
@@ -1047,6 +1056,7 @@ $('#upload-form').addEventListener('submit', async (e) => {
   button.disabled = false;
 });
 
+/* ---------- 15. SEARCH FORM ---------- */
 $('#search-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = $('#search-input').value.trim();
@@ -1058,6 +1068,7 @@ $('#search-form').addEventListener('submit', async (e) => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
+/* ---------- 16. ALL BUTTON CLICKS ---------- */
 document.addEventListener('click', async (e) => {
   const dd = document.getElementById('notif-dropdown');
   if (dd && !dd.hidden && !e.target.closest('.notif-wrap')) dd.hidden = true;
@@ -1075,6 +1086,7 @@ document.addEventListener('click', async (e) => {
   const commentId = commentEl ? Number(commentEl.dataset.cid) : null;
 
   switch (action) {
+    // header & navigation
     case 'open-login':   openDialog('login-dialog'); break;
     case 'open-signup':  openDialog('signup-dialog'); break;
     case 'open-rules':   openDialog('rules-dialog'); break;
@@ -1107,6 +1119,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    // notifications
     case 'toggle-notifs': {
       const dropdown = document.getElementById('notif-dropdown');
       if (!dropdown) break;
@@ -1120,13 +1133,6 @@ document.addEventListener('click', async (e) => {
     }
     case 'mark-all-read': {
       await db.from('notifications').update({ is_read: true }).eq('user_id', me.id).eq('is_read', false);
-      await loadNotifications();
-      await loadUnreadCount();
-      break;
-    }
-    case 'delete-notif': {
-      const nid = Number(btn.dataset.id);
-      await db.from('notifications').delete().eq('id', nid);
       await loadNotifications();
       await loadUnreadCount();
       break;
@@ -1147,37 +1153,8 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    // profile page
     case 'edit-profile': await openEditProfile(); break;
-    case 'save-note': {
-      if (!me) break;
-      const pid = btn.dataset.profileId;
-      const details = btn.closest('.profile-note');
-      const ta = details.querySelector('.note-body');
-      const body = ta.value.trim();
-      const feedback = details.querySelector('.note-msg');
-      const summary = details.querySelector('summary');
-      feedback.textContent = 'Saving…';
-      try {
-        if (!body) {
-          const { error } = await db.from('profile_notes')
-            .delete().eq('viewer_id', me.id).eq('profile_id', pid);
-          if (error) throw error;
-        } else {
-          const { error } = await db.from('profile_notes')
-            .upsert({ viewer_id: me.id, profile_id: pid, body },
-                     { onConflict: 'viewer_id,profile_id' });
-          if (error) throw error;
-        }
-        feedback.textContent = 'Saved 🌱';
-        summary.textContent = body
-          ? '📝 Your private note · has note'
-          : '📝 Your private note';
-        setTimeout(() => { feedback.textContent = ''; }, 1500);
-      } catch (err) {
-        feedback.textContent = 'Could not save';
-      }
-      break;
-    }
     case 'delete-account': {
       const typed = prompt(
         'This will permanently delete your account, along with all your posts, comments, votes, saves, follows and uploaded files.\n\n' +
@@ -1219,6 +1196,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    // post buttons
     case 'up':          await vote(postId, 1); break;
     case 'down':        await vote(postId, -1); break;
     case 'save':        await toggleSave(postId); break;
@@ -1230,6 +1208,7 @@ document.addEventListener('click', async (e) => {
     case 'save-edit-post':   await saveEditPost(card, postId); break;
     case 'cancel-edit-post': await loadFeed(); break;
 
+    // comments
     case 'toggle-comments': {
       const box = card.querySelector('.comments');
       box.hidden = !box.hidden;
@@ -1267,6 +1246,7 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+/* ---------- 17. START THE APP ---------- */
 async function start() {
   const { data: { session } } = await db.auth.getSession();
   await setUser(session ? session.user : null);
